@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#14121c">
+<title>Painel de doações</title>
+<style>
+  :root{--bg:#14121c;--panel:#1d1a29;--line:#2d2940;--txt:#f2eefb;--mut:#9a93b3;--acc:#ffb703;--acc2:#fb5607;--ok:#3ddc97;--err:#ff6b6b}
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh}
+  .wrap{max-width:720px;margin:0 auto;padding:14px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 2px 12px}
+  header h1{font-size:17px;margin:0}
+  header .st{font-size:12px;color:var(--mut);display:flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--mut)}
+  .dot.on{background:var(--ok)} .dot.off{background:var(--err)}
+  .link{background:none;border:0;color:var(--mut);font-size:12px;text-decoration:underline;cursor:pointer;padding:0}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tabs button{flex:1;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--mut);font-size:15px;font-weight:600;cursor:pointer}
+  .tabs button.on{color:#1a1200;border-color:transparent;background:linear-gradient(135deg,var(--acc),var(--acc2))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+  .card h2{margin:0 0 12px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+  label{display:block;font-size:13px;color:var(--mut);margin:12px 0 6px}
+  input[type=text],input[type=password]{width:100%;padding:13px 14px;border-radius:10px;border:1px solid var(--line);background:#12101a;color:var(--txt);font-size:17px;outline:none}
+  input[type=text]:focus,input[type=password]:focus{border-color:var(--acc)}
+  .btn{width:100%;margin-top:14px;padding:14px;border:0;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;color:#1a1200;background:linear-gradient(135deg,var(--acc),var(--acc2))}
+  .btn:disabled{opacity:.55;cursor:wait}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line);font-weight:500;font-size:14px;padding:11px;margin-top:8px}
+  .btn.danger{color:var(--err)}
+  .row{display:flex;gap:8px}
+  .quick{display:flex;gap:6px;margin-top:8px}
+  .quick button{flex:1;padding:10px 4px;border-radius:8px;border:1px solid var(--line);background:#12101a;color:var(--txt);cursor:pointer;font-size:15px}
+  .quick button:hover{border-color:var(--acc)}
+  .msg{min-height:20px;font-size:14px;margin-top:10px}
+  .msg.ok{color:var(--ok)} .msg.err{color:var(--err)}
+  .hist div{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .hist div span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hist small{color:var(--mut)}
+  .tot{display:flex;justify-content:space-between;font-size:14px;color:var(--mut);margin-bottom:8px}
+  .tot b{color:var(--txt)}
+  .pv{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#000}
+  .pv iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .opt{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;margin-top:11px;color:var(--mut)}
+  .opt input[type=color]{width:46px;height:30px;padding:0;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer}
+  .opt input[type=range]{width:55%;max-width:240px}
+  .opt input[type=text]{width:55%;padding:8px 10px;font-size:14px}
+  h4{margin:16px 0 2px;font-size:13px;color:var(--acc)}
+  .dirty{font-size:13px;color:var(--acc);min-height:18px;margin-top:8px}
+  #login{max-width:380px;margin:12vh auto 0;padding:0 16px}
+  #login h1{font-size:20px}
+  #login p{color:var(--mut);font-size:14px}
+</style>
+</head>
+<body>
+
+<!-- ========== Entrada com senha ========== -->
+<div id="login">
+  <h1>💛 Painel de doações</h1>
+  <p>Digite a senha para continuar.</p>
+  <input type="password" id="pinIn" autocomplete="current-password" placeholder="Senha">
+  <button class="btn" id="pinGo" type="button">Entrar</button>
+  <div class="msg err" id="pinMsg"></div>
+</div>
+
+<!-- ========== App ========== -->
+<div class="wrap" id="app" hidden>
+  <header>
+    <h1>💛 Painel de doações</h1>
+    <div class="st"><span class="dot" id="dot"></span><span id="stTxt">conectando…</span> · <button class="link" id="sair" type="button">sair</button></div>
+  </header>
+
+  <div class="tabs">
+    <button type="button" data-t="env" class="on">Enviar</button>
+    <button type="button" data-t="apa">Aparência</button>
+  </div>
+
+  <!-- ===== Enviar ===== -->
+  <section id="t-env">
+    <div class="card">
+      <h2>Nova doação</h2>
+      <form id="f" autocomplete="off">
+        <label for="nome" style="margin-top:0">Nome de quem doou</label>
+        <input type="text" id="nome" maxlength="30" placeholder="Ex.: Maria" enterkeyhint="next">
+        <label for="valor">Valor (R$)</label>
+        <input type="text" id="valor" inputmode="decimal" placeholder="25,00" enterkeyhint="next">
+        <div class="quick">
+          <button type="button" data-v="5">5</button><button type="button" data-v="10">10</button>
+          <button type="button" data-v="25">25</button><button type="button" data-v="50">50</button>
+          <button type="button" data-v="100">100</button>
+        </div>
+        <label for="msg">Mensagem (opcional)</label>
+        <input type="text" id="msg" maxlength="80" placeholder="Deus abençoe!" enterkeyhint="send">
+        <button class="btn" id="enviar" type="submit">Enviar para a tela ✨</button>
+        <div class="msg" id="envMsg"></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Últimas doações</h2>
+      <div class="tot"><span id="qtd">0 doações</span><span>Total: <b id="tot">R$ 0,00</b></span></div>
+      <div class="hist" id="hist"><div><span>Nenhuma doação ainda</span></div></div>
+      <div class="row">
+        <button class="btn ghost" id="undo" type="button">↩ Desfazer a última</button>
+        <button class="btn ghost danger" id="reset" type="button">Zerar ranking</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Aparência ===== -->
+  <section id="t-apa" hidden>
+    <div class="card">
+      <h2>Prévia ao vivo</h2>
+      <div class="pv"><iframe id="pv" src="overlay.html?preview=1" title="Prévia do overlay"></iframe></div>
+      <div class="opt"><label style="margin:0;display:flex;gap:8px;align-items:center;cursor:pointer;color:var(--txt)"><input type="checkbox" id="pin" checked> Fixar alerta na prévia (para posicionar)</label></div>
+    </div>
+
+    <div class="card">
+      <h2>Aparência</h2>
+      <h4 style="margin-top:0">Alerta (esquerda)</h4>
+      <div class="opt"><span>Cor 1</span><input type="color" id="aC1"></div>
+      <div class="opt"><span>Cor 2</span><input type="color" id="aC2"></div>
+      <div class="opt"><span>Cor do texto</span><input type="color" id="aTx"></div>
+      <div class="opt"><span>Transparência</span><input type="range" id="aOp" min="10" max="100"></div>
+      <div class="opt"><span>Posição horizontal</span><input type="range" id="aX" min="0" max="64"></div>
+      <div class="opt"><span>Posição vertical</span><input type="range" id="aY" min="0" max="80"></div>
+      <div class="opt"><span>Duração (segundos)</span><input type="range" id="dur" min="2" max="10"></div>
+      <div class="opt"><span>Som</span><input type="checkbox" id="som"></div>
+
+      <h4>Lista de maiores doadores (direita)</h4>
+      <div class="opt"><span>Título</span><input type="text" id="rTitle" maxlength="30"></div>
+      <div class="opt"><span>Cor de fundo</span><input type="color" id="rBg"></div>
+      <div class="opt"><span>Cor de destaque</span><input type="color" id="rAc"></div>
+      <div class="opt"><span>Cor do texto</span><input type="color" id="rTx"></div>
+      <div class="opt"><span>Transparência do fundo</span><input type="range" id="rOp" min="0" max="100"></div>
+      <div class="opt"><span>Posição horizontal</span><input type="range" id="rX" min="0" max="72"></div>
+      <div class="opt"><span>Posição vertical</span><input type="range" id="rY" min="0" max="80"></div>
+      <div class="opt"><span>Quantos aparecem</span><input type="range" id="topn" min="3" max="8"></div>
+
+      <div class="dirty" id="dirty"></div>
+      <button class="btn" id="salvar" type="button">Salvar aparência</button>
+      <button class="btn ghost" id="padrao" type="button">Restaurar padrão</button>
+      <div class="msg" id="apaMsg"></div>
+    </div>
+  </section>
+</div>
+
+<script src="config.js"></script>
+<script src="comum.js"></script>
+<script>
+(function(){
+  var $ = function(i){ return document.getElementById(i); };
+  var busy = false, dirty = false, cfgLoaded = false, evs = {};
+  var K_COR = ['aC1','aC2','aTx','rBg','rAc','rTx'];
+  var K_NUM = ['aOp','aX','aY','rOp','rX','rY','dur','topn'];
+  var K_ALL = K_COR.concat(K_NUM, ['rTitle','som']);
+
+  function setMsg(id, txt, cls){ var e = $(id); e.textContent = txt || ''; e.className = 'msg' + (cls ? ' ' + cls : ''); }
+  function status(on, txt){ $('dot').className = 'dot ' + (on ? 'on' : 'off'); $('stTxt').textContent = txt; }
+  function erroTxt(e){ return (e && e.message === 'Failed to fetch') ? 'Sem conexão. Tente de novo.' : (e && e.message) || 'Erro'; }
+
+  /* ---------- Login ---------- */
+  var iniciado = false;
+  function mostrarApp(){
+    $('login').hidden = true; $('app').hidden = false;
+    if (iniciado) return; iniciado = true;
+    DOA.stream('/events', function(data){ evs = data || {}; aplicarEventos(); }, function(ok){
+      status(ok, ok ? 'conectado' : 'reconectando…');
+    });
+    DOA.get('/cfg').then(function(c){ preencherCfg(DOA.merge(c || {})); enviarPrevia(); })
+      .catch(function(){ preencherCfg(DOA.merge({})); });
+  }
+  function entrar(senha){
+    $('pinGo').disabled = true; setMsg('pinMsg', 'Verificando…');
+    DOA.login(senha).then(function(){ setMsg('pinMsg', ''); mostrarApp(); })
+      .catch(function(e){ setMsg('pinMsg', erroTxt(e), 'err'); })
+      .then(function(){ $('pinGo').disabled = false; });
+  }
+  $('pinGo').addEventListener('click', function(){ var p = $('pinIn').value; if (p) entrar(p); });
+  $('pinIn').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('pinGo').click(); });
+  $('sair').addEventListener('click', function(){ DOA.logout(); location.reload(); });
+
+  /* ---------- Eventos → tela ---------- */
+  function aplicarEventos(){
+    var ids = Object.keys(evs).sort(), total = 0;
+    ids.forEach(function(id){ total += Number(evs[id].valor) || 0; });
+    $('tot').textContent = DOA.brl(total);
+    $('qtd').textContent = ids.length + (ids.length === 1 ? ' doação' : ' doações');
+    var h = $('hist'); h.innerHTML = '';
+    if (!ids.length) { h.innerHTML = '<div><span>Nenhuma doação ainda</span></div>'; return; }
+    ids.slice(-10).reverse().forEach(function(id){
+      var d = evs[id], row = document.createElement('div');
+      var a = document.createElement('span'); a.textContent = d.nome;
+      if (d.msg) { var m = document.createElement('small'); m.textContent = '  “' + d.msg + '”'; a.appendChild(m); }
+      var b = document.createElement('span'); b.textContent = DOA.brl(d.valor);
+      row.appendChild(a); row.appendChild(b); h.appendChild(row);
+    });
+  }
+
+  /* ---------- Enviar ---------- */
+  function parseValor(v){
+    v = String(v).trim().replace(/[R$\s]/g, '');
+    if (v.indexOf(',') >= 0) v = v.replace(/\./g, '').replace(',', '.');
+    return parseFloat(v);
+  }
+  $('f').addEventListener('submit', function(e){
+    e.preventDefault();
+    if (busy) return;
+    var nome = $('nome').value.trim().replace(/\s+/g, ' '), valor = Math.round(parseValor($('valor').value) * 100) / 100, msg = $('msg').value.trim();
+    if (!nome) { $('nome').focus(); return setMsg('envMsg', 'Informe o nome.', 'err'); }
+    if (!(valor > 0)) { $('valor').focus(); return setMsg('envMsg', 'Informe um valor válido.', 'err'); }
+    busy = true; $('enviar').disabled = true; setMsg('envMsg', 'Enviando…');
+    var ev = { nome: nome.slice(0, 30), valor: valor };
+    if (msg) ev.msg = msg.slice(0, 80);
+    DOA.db('POST', '/events', ev).then(function(){
+      setMsg('envMsg', '✓ Enviado: ' + ev.nome + ' — ' + DOA.brl(valor), 'ok');
+      $('nome').value = ''; $('valor').value = ''; $('msg').value = ''; $('nome').focus();
+    }).catch(function(err){ setMsg('envMsg', erroTxt(err), 'err'); })
+      .then(function(){ busy = false; $('enviar').disabled = false; });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.quick button'), function(b){
+    b.addEventListener('click', function(){ $('valor').value = b.getAttribute('data-v'); });
+  });
+  $('undo').addEventListener('click', function(){
+    var ids = Object.keys(evs).sort();
+    if (!ids.length) return setMsg('envMsg', 'Não há doação para desfazer.', 'err');
+    var d = evs[ids[ids.length - 1]];
+    if (!confirm('Desfazer a última doação (' + d.nome + ' — ' + DOA.brl(d.valor) + ')? Ela sai do ranking.')) return;
+    DOA.db('DELETE', '/events/' + ids[ids.length - 1]).then(function(){ setMsg('envMsg', 'Última doação desfeita.', 'ok'); })
+      .catch(function(e){ setMsg('envMsg', erroTxt(e), 'err'); });
+  });
+  $('reset').addEventListener('click', function(){
+    if (!confirm('Zerar o ranking e o total? Isso apaga as doações registradas.')) return;
+    DOA.db('DELETE', '/events').then(function(){ setMsg('envMsg', 'Ranking zerado.', 'ok'); })
+      .catch(function(e){ setMsg('envMsg', erroTxt(e), 'err'); });
+  });
+
+  /* ---------- Abas ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function(b){
+    b.addEventListener('click', function(){
+      Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function(x){ x.classList.toggle('on', x === b); });
+      $('t-env').hidden = b.getAttribute('data-t') !== 'env';
+      $('t-apa').hidden = b.getAttribute('data-t') !== 'apa';
+    });
+  });
+
+  /* ---------- Aparência ---------- */
+  function preencherCfg(c){
+    K_COR.concat(K_NUM, ['rTitle']).forEach(function(k){ $(k).value = c[k]; });
+    $('som').checked = !!c.som;
+  }
+  function lerCfg(){
+    var c = {};
+    K_COR.forEach(function(k){ c[k] = $(k).value; });
+    K_NUM.forEach(function(k){ c[k] = Number($(k).value); });
+    c.rTitle = $('rTitle').value || DOA.DEF.rTitle;
+    c.som = $('som').checked;
+    return c;
+  }
+  function enviarPrevia(){
+    var w = $('pv').contentWindow; if (!w) return;
+    w.postMessage({ type: 'cfg', cfg: lerCfg() }, '*');
+    w.postMessage({ type: 'pin', on: $('pin').checked }, '*');
+  }
+  function marcarSujo(){
+    dirty = true; $('dirty').textContent = '● Alterações ainda não salvas'; setMsg('apaMsg', '');
+    enviarPrevia();
+  }
+  K_ALL.forEach(function(k){ $(k).addEventListener('input', marcarSujo); $(k).addEventListener('change', marcarSujo); });
+  $('pin').addEventListener('change', enviarPrevia);
+  $('pv').addEventListener('load', function(){ setTimeout(enviarPrevia, 150); });
+
+  $('salvar').addEventListener('click', function(){
+    $('salvar').disabled = true; setMsg('apaMsg', 'Salvando…');
+    DOA.db('PUT', '/cfg', lerCfg()).then(function(){
+      dirty = false; $('dirty').textContent = '';
+      setMsg('apaMsg', '✓ Salvo. O overlay do OBS atualiza na hora.', 'ok');
+    }).catch(function(e){ setMsg('apaMsg', erroTxt(e), 'err'); })
+      .then(function(){ $('salvar').disabled = false; });
+  });
+  $('padrao').addEventListener('click', function(){ preencherCfg(DOA.merge({})); marcarSujo(); });
+
+  window.addEventListener('beforeunload', function(e){ if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+  /* ---------- Início ---------- */
+  preencherCfg(DOA.merge({}));
+  if (!DOA.fbOk()) {
+    setMsg('pinMsg', 'Falta configurar o Firebase no arquivo config.js', 'err');
+    $('pinGo').disabled = true;
+  } else if (DOA.hasSession()) {
+    DOA.token().then(mostrarApp).catch(function(){ DOA.logout(); $('pinIn').focus(); });
+  } else {
+    $('pinIn').focus();
+  }
+})();
+</script>
+</body>
+</html>
