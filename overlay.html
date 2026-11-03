@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Overlay de doações</title>
 <style>
-  :root{--u:19.2px}
+  :root{--ub:19.2px;--u:var(--ub)}
   html,body{margin:0;height:100%;overflow:hidden;background:transparent;
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
   body.preview{background:linear-gradient(135deg,#2b3a67 0%,#1b1f3b 45%,#3a1f4a 100%)}
@@ -14,7 +14,7 @@
     font-size:calc(var(--u)*.9);color:#ffffff55;letter-spacing:.15em}
 
   /* ---------- Alerta ---------- */
-  .alert{position:absolute;left:var(--ax,3%);top:var(--ay,12%);width:36%;box-sizing:border-box;
+  .alert{--u:calc(var(--ub)*var(--as,1));position:absolute;left:min(var(--ax,3%),calc(100% - var(--u)*36 - 1%));top:var(--ay,12%);width:calc(var(--u)*36);box-sizing:border-box;
     padding:calc(var(--u)*1.2) calc(var(--u)*1.8);border-radius:calc(var(--u)*1.3);
     background:linear-gradient(135deg,var(--a1,#ffb703),var(--a2,#fb5607));color:var(--atx,#1a0f00);
     box-shadow:0 12px 40px #000a,0 0 0 3px #ffffff55 inset;
@@ -28,7 +28,7 @@
   .alert .msg{font-size:calc(var(--u)*1);opacity:.75;margin-top:.3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
   /* ---------- Ranking ---------- */
-  .rank{position:absolute;left:var(--rx,69%);top:var(--ry,24%);width:28%;box-sizing:border-box;
+  .rank{--u:calc(var(--ub)*var(--rs,1));position:absolute;left:min(var(--rx,69%),calc(100% - var(--u)*28 - 1%));top:var(--ry,24%);width:calc(var(--u)*28);box-sizing:border-box;
     padding:calc(var(--u)*.9) calc(var(--u)*1.1);border-radius:calc(var(--u)*1.1);
     background:var(--rbgc,rgba(0,0,0,.7));color:var(--rtx,#fff);opacity:0;transition:opacity .4s}
   .rank h3{margin:0 0 calc(var(--u)*.6);font-size:calc(var(--u)*.95);letter-spacing:.12em;
@@ -77,7 +77,7 @@
 
   function unit(){
     var u = window.innerWidth / 100;
-    document.documentElement.style.setProperty('--u', u + 'px');
+    document.documentElement.style.setProperty('--ub', u + 'px');
     return u;
   }
 
@@ -88,6 +88,7 @@
     s.setProperty('--a2', DOA.hexA(cfg.aC2, a));
     s.setProperty('--atx', cfg.aTx);
     s.setProperty('--ax', cfg.aX + '%');  s.setProperty('--ay', cfg.aY + '%');
+    s.setProperty('--as', cfg.aS / 100);  s.setProperty('--rs', cfg.rS / 100);
     s.setProperty('--rbgc', DOA.hexA(cfg.rBg, cfg.rOp / 100));
     s.setProperty('--rac', cfg.rAc);      s.setProperty('--rflash', DOA.hexA(cfg.rAc, .35));
     s.setProperty('--rtx', cfg.rTx);
@@ -108,8 +109,14 @@
     return arr.slice(0, cfg.topn);
   }
 
+  // Se a lista (por tamanho ou quantidade) passaria do rodapé, sobe o suficiente para caber na tela
+  function fitRank(){
+    var r = $('rank'), H = window.innerHeight, want = cfg.rY / 100 * H, max = H - r.offsetHeight - H * 0.01;
+    r.style.top = (want > max) ? Math.max(0, max) + 'px' : '';
+  }
+
   function renderRank(flashKey){
-    var u = unit(), rh = u * 2.9, gap = u * 0.5, list = $('rlist'), arr = listaRank(), keep = {};
+    var u = unit() * (cfg.rS / 100), rh = u * 2.9, gap = u * 0.5, list = $('rlist'), arr = listaRank(), keep = {};
     $('rank').style.opacity = arr.length ? 1 : 0;
     list.style.height = arr.length ? (arr.length * (rh + gap) - gap) + 'px' : '0px';
     arr.forEach(function(d, i){
@@ -134,6 +141,7 @@
         setTimeout(function(){ el.classList.remove('flash'); }, 900);
       }
     });
+    fitRank();
     Object.keys(rows).forEach(function(k){
       if (!keep[k]) {
         var el = rows[k]; el.style.opacity = '0';
@@ -236,7 +244,7 @@
       if (known[id]) return;
       known[id] = 1;
       var e = evMap[id]; if (!e || !e.nome || !(Number(e.valor) > 0)) return;
-      if (!firstLoad) queue.push({ id: id, nome: String(e.nome).slice(0, 30), valor: Number(e.valor), msg: String(e.msg || '').slice(0, 80) });
+      if (!firstLoad && !e.q) queue.push({ id: id, nome: String(e.nome).slice(0, 30), valor: Number(e.valor), msg: String(e.msg || '').slice(0, 80) });
     });
     Object.keys(known).forEach(function(id){ if (!evMap[id]) delete known[id]; });   // desfeitas / zeradas
     queue = queue.filter(function(q){ return evMap[q.id]; });

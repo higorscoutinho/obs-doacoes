@@ -38,6 +38,9 @@
   .hist div{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
   .hist div span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .hist small{color:var(--mut)}
+  .hist .dir{display:flex;align-items:center;gap:10px;flex-shrink:0}
+  .hist .x{background:none;border:1px solid var(--line);color:var(--mut);border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:13px}
+  .hist .x:hover{color:var(--err);border-color:var(--err)}
   .tot{display:flex;justify-content:space-between;font-size:14px;color:var(--mut);margin-bottom:8px}
   .tot b{color:var(--txt)}
   .pv{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#000}
@@ -74,6 +77,7 @@
   <div class="tabs">
     <button type="button" data-t="env" class="on">Enviar</button>
     <button type="button" data-t="apa">Aparência</button>
+    <button type="button" data-t="tst">Testes</button>
   </div>
 
   <!-- ===== Enviar ===== -->
@@ -103,7 +107,7 @@
       <div class="hist" id="hist"><div><span>Nenhuma doação ainda</span></div></div>
       <div class="row">
         <button class="btn ghost" id="undo" type="button">↩ Desfazer a última</button>
-        <button class="btn ghost danger" id="reset" type="button">Zerar ranking</button>
+        <button class="btn ghost danger" id="reset" type="button">🗑 Apagar tudo</button>
       </div>
     </div>
   </section>
@@ -123,8 +127,9 @@
       <div class="opt"><span>Cor 2</span><input type="color" id="aC2"></div>
       <div class="opt"><span>Cor do texto</span><input type="color" id="aTx"></div>
       <div class="opt"><span>Transparência</span><input type="range" id="aOp" min="10" max="100"></div>
-      <div class="opt"><span>Posição horizontal</span><input type="range" id="aX" min="0" max="64"></div>
-      <div class="opt"><span>Posição vertical</span><input type="range" id="aY" min="0" max="80"></div>
+      <div class="opt"><span>Tamanho (%)</span><input type="range" id="aS" min="50" max="200"></div>
+      <div class="opt"><span>Posição horizontal</span><input type="range" id="aX" min="0" max="90"></div>
+      <div class="opt"><span>Posição vertical</span><input type="range" id="aY" min="0" max="90"></div>
       <div class="opt"><span>Duração (segundos)</span><input type="range" id="dur" min="2" max="10"></div>
       <div class="opt"><span>Som</span><input type="checkbox" id="som"></div>
 
@@ -134,14 +139,35 @@
       <div class="opt"><span>Cor de destaque</span><input type="color" id="rAc"></div>
       <div class="opt"><span>Cor do texto</span><input type="color" id="rTx"></div>
       <div class="opt"><span>Transparência do fundo</span><input type="range" id="rOp" min="0" max="100"></div>
-      <div class="opt"><span>Posição horizontal</span><input type="range" id="rX" min="0" max="72"></div>
-      <div class="opt"><span>Posição vertical</span><input type="range" id="rY" min="0" max="80"></div>
-      <div class="opt"><span>Quantos aparecem</span><input type="range" id="topn" min="3" max="8"></div>
+      <div class="opt"><span>Quantos nomes aparecem <b id="topnv"></b></span><input type="range" id="topn" min="1" max="15"></div>
+      <div class="opt"><span>Tamanho (%)</span><input type="range" id="rS" min="50" max="200"></div>
+      <div class="opt"><span>Posição horizontal</span><input type="range" id="rX" min="0" max="90"></div>
+      <div class="opt"><span>Posição vertical</span><input type="range" id="rY" min="0" max="90"></div>
 
       <div class="dirty" id="dirty"></div>
       <button class="btn" id="salvar" type="button">Salvar aparência</button>
       <button class="btn ghost" id="padrao" type="button">Restaurar padrão</button>
       <div class="msg" id="apaMsg"></div>
+    </div>
+  </section>
+
+  <!-- ===== Testes ===== -->
+  <section id="t-tst" hidden>
+    <div class="card">
+      <h2>Simulador de doações (para testar o layout)</h2>
+      <p style="margin:0 0 6px;font-size:13px;color:var(--mut);line-height:1.5">
+        Gera doações <b>de mentira</b> com nomes e valores aleatórios (sempre “quebrados”, tipo R$ 25,67) e mostra na tela do OBS.
+        Todas ficam marcadas como teste e podem ser apagadas de uma vez no último botão.</p>
+
+      <button class="btn" id="simTop" type="button">🏆 Gerar valor mais alto (vira o Top 1)</button>
+      <button class="btn ghost" id="simRand" type="button">🎲 Gerar uma doação aleatória (com alerta)</button>
+
+      <div class="opt" style="margin-top:16px"><span>Nomes para preencher a lista <b id="simNv">8</b></span><input type="range" id="simN" min="1" max="15" value="8"></div>
+      <button class="btn ghost" id="simFill" type="button">👥 Preencher a lista com nomes aleatórios (sem alerta)</button>
+
+      <button class="btn ghost" id="simAuto" type="button">▶ Gerar doações aleatórias aos poucos</button>
+      <button class="btn ghost danger" id="simClear" type="button">🧹 Apagar só as doações de teste</button>
+      <div class="msg" id="tstMsg"></div>
     </div>
   </section>
 </div>
@@ -153,7 +179,7 @@
   var $ = function(i){ return document.getElementById(i); };
   var busy = false, dirty = false, cfgLoaded = false, evs = {};
   var K_COR = ['aC1','aC2','aTx','rBg','rAc','rTx'];
-  var K_NUM = ['aOp','aX','aY','rOp','rX','rY','dur','topn'];
+  var K_NUM = ['aOp','aX','aY','rOp','rX','rY','dur','topn','aS','rS'];
   var K_ALL = K_COR.concat(K_NUM, ['rTitle','som']);
 
   function setMsg(id, txt, cls){ var e = $(id); e.textContent = txt || ''; e.className = 'msg' + (cls ? ' ' + cls : ''); }
@@ -194,8 +220,18 @@
       var a = document.createElement('span'); a.textContent = d.nome;
       if (d.msg) { var m = document.createElement('small'); m.textContent = '  “' + d.msg + '”'; a.appendChild(m); }
       var b = document.createElement('span'); b.textContent = DOA.brl(d.valor);
-      row.appendChild(a); row.appendChild(b); h.appendChild(row);
+      var x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '✕'; x.title = 'Apagar esta doação';
+      x.addEventListener('click', function(){ apagarUma(id); });
+      var dir = document.createElement('span'); dir.className = 'dir'; dir.appendChild(b); dir.appendChild(x);
+      row.appendChild(a); row.appendChild(dir); h.appendChild(row);
     });
+  }
+
+  function apagarUma(id){
+    var d = evs[id]; if (!d) return;
+    if (!confirm('Apagar esta doação (' + d.nome + ' — ' + DOA.brl(d.valor) + ')? Ela sai do ranking.')) return;
+    DOA.db('DELETE', '/events/' + id).then(function(){ setMsg('envMsg', 'Doação apagada.', 'ok'); })
+      .catch(function(e){ setMsg('envMsg', erroTxt(e), 'err'); });
   }
 
   /* ---------- Enviar ---------- */
@@ -231,8 +267,8 @@
       .catch(function(e){ setMsg('envMsg', erroTxt(e), 'err'); });
   });
   $('reset').addEventListener('click', function(){
-    if (!confirm('Zerar o ranking e o total? Isso apaga as doações registradas.')) return;
-    DOA.db('DELETE', '/events').then(function(){ setMsg('envMsg', 'Ranking zerado.', 'ok'); })
+    if (!confirm('Apagar TODAS as doações? O ranking e o total voltam a zero.')) return;
+    DOA.db('DELETE', '/events').then(function(){ setMsg('envMsg', 'Tudo apagado.', 'ok'); })
       .catch(function(e){ setMsg('envMsg', erroTxt(e), 'err'); });
   });
 
@@ -240,15 +276,14 @@
   Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function(b){
     b.addEventListener('click', function(){
       Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function(x){ x.classList.toggle('on', x === b); });
-      $('t-env').hidden = b.getAttribute('data-t') !== 'env';
-      $('t-apa').hidden = b.getAttribute('data-t') !== 'apa';
+      ['env', 'apa', 'tst'].forEach(function(t){ $('t-' + t).hidden = b.getAttribute('data-t') !== t; });
     });
   });
 
   /* ---------- Aparência ---------- */
   function preencherCfg(c){
     K_COR.concat(K_NUM, ['rTitle']).forEach(function(k){ $(k).value = c[k]; });
-    $('som').checked = !!c.som;
+    $('som').checked = !!c.som; mostraTopn();
   }
   function lerCfg(){
     var c = {};
@@ -263,7 +298,9 @@
     w.postMessage({ type: 'cfg', cfg: lerCfg() }, '*');
     w.postMessage({ type: 'pin', on: $('pin').checked }, '*');
   }
+  function mostraTopn(){ $('topnv').textContent = '(' + $('topn').value + ')'; }
   function marcarSujo(){
+    mostraTopn();
     dirty = true; $('dirty').textContent = '● Alterações ainda não salvas'; setMsg('apaMsg', '');
     enviarPrevia();
   }
@@ -282,6 +319,98 @@
   $('padrao').addEventListener('click', function(){ preencherCfg(DOA.merge({})); marcarSujo(); });
 
   window.addEventListener('beforeunload', function(e){ if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+  /* ---------- Simulador de testes ---------- */
+  var NOMES = ['Maria','João','Ana','Pedro','Lucas','Juliana','Carlos','Fernanda','Rafael','Beatriz','Gabriel','Camila','Marcos','Letícia','Paulo','Aline','Tiago','Larissa','Bruno','Patrícia','Felipe','Renata','Diego','Vanessa','Thiago','Priscila','André','Débora','Rodrigo','Simone','Mateus','Sabrina','Eduardo','Cláudia','Henrique','Bianca','Vinícius','Luana','Samuel','Natália'];
+  var SOBRE = ['Silva','Souza','Oliveira','Santos','Pereira','Costa','Rodrigues','Almeida','Nascimento','Lima','Araújo','Ribeiro','Carvalho','Gomes','Martins','Rocha','Barbosa','Moreira','Cardoso','Teixeira'];
+  var MSGS = ['Deus abençoe!','Parabéns pelo projeto!','Contem comigo!','Que Deus multiplique!','Tamo junto!','Força aí!'];
+  var timerSim = null;
+
+  function rnd(a){ return a[Math.floor(Math.random() * a.length)]; }
+  // valor sempre "quebrado" (centavos de 01 a 99), entre min e max
+  function valorQuebrado(min, max){
+    var base = Math.floor(min + Math.random() * (max - min)), c = 1 + Math.floor(Math.random() * 99);
+    return Math.round((base + c / 100) * 100) / 100;
+  }
+  function nomesUsados(){
+    var s = {}; Object.keys(evs).forEach(function(id){ s[String(evs[id].nome).toLowerCase()] = 1; }); return s;
+  }
+  function nomeNovo(usados){
+    var n, i;
+    for (i = 0; i < 40; i++) {
+      var r = Math.random();
+      if (r < .12) n = 'Família ' + rnd(SOBRE);
+      else if (r < .2) n = 'Anônimo';
+      else n = rnd(NOMES) + (Math.random() < .6 ? ' ' + rnd(SOBRE) : '');
+      if (!usados[n.toLowerCase()]) { usados[n.toLowerCase()] = 1; return n; }
+    }
+    n = rnd(NOMES) + ' ' + rnd(SOBRE) + ' ' + (10 + Math.floor(Math.random() * 90));
+    usados[n.toLowerCase()] = 1; return n;
+  }
+  function topoAtual(){
+    var t = {}, m = 0;
+    Object.keys(evs).forEach(function(id){
+      var k = String(evs[id].nome).toLowerCase();
+      t[k] = Math.round(((t[k] || 0) + Number(evs[id].valor)) * 100) / 100;
+      if (t[k] > m) m = t[k];
+    });
+    return m;
+  }
+  function enviarTeste(ev){ ev.t = 1; return DOA.db('POST', '/events', ev); }   // t:1 = doação de teste
+  function tstMsg(txt, cls){ setMsg('tstMsg', txt, cls); }
+
+  $('simTop').addEventListener('click', function(){
+    var top = topoAtual();
+    var ev = { nome: nomeNovo(nomesUsados()), valor: top > 0 ? valorQuebrado(top + 1, top + 30) : valorQuebrado(20, 80) };
+    enviarTeste(ev).then(function(){ tstMsg('✓ Novo Top 1: ' + ev.nome + ' — ' + DOA.brl(ev.valor), 'ok'); })
+      .catch(function(e){ tstMsg(erroTxt(e), 'err'); });
+  });
+  $('simRand').addEventListener('click', function(){
+    var ev = { nome: nomeNovo(nomesUsados()), valor: valorQuebrado(5, 150) };
+    if (Math.random() < .5) ev.msg = rnd(MSGS);
+    enviarTeste(ev).then(function(){ tstMsg('✓ ' + ev.nome + ' — ' + DOA.brl(ev.valor), 'ok'); })
+      .catch(function(e){ tstMsg(erroTxt(e), 'err'); });
+  });
+  $('simN').addEventListener('input', function(){ $('simNv').textContent = $('simN').value; });
+  $('simFill').addEventListener('click', function(){
+    var n = Math.max(1, Math.min(15, Number($('simN').value) || 8)), usados = nomesUsados(), chain = Promise.resolve(), i;
+    $('simFill').disabled = true; tstMsg('Gerando ' + n + ' nomes…');
+    for (i = 0; i < n; i++) (function(){
+      var ev = { nome: nomeNovo(usados), valor: valorQuebrado(5, 300), q: 1 };   // q:1 = entra no ranking sem alerta
+      chain = chain.then(function(){ return enviarTeste(ev); });
+    })();
+    chain.then(function(){ tstMsg('✓ ' + n + ' nomes aleatórios adicionados à lista.', 'ok'); })
+      .catch(function(e){ tstMsg(erroTxt(e), 'err'); })
+      .then(function(){ $('simFill').disabled = false; });
+  });
+
+  function pararSim(){
+    if (timerSim) { clearInterval(timerSim); timerSim = null; }
+    $('simAuto').textContent = '▶ Gerar doações aleatórias aos poucos';
+  }
+  function tickSim(){
+    var testes = Object.keys(evs).filter(function(id){ return evs[id].t; }).map(function(id){ return evs[id].nome; });
+    var ev = (testes.length > 2 && Math.random() < .4)
+      ? { nome: rnd(testes), valor: valorQuebrado(5, 60) }                       // alguém que já doou, doa de novo
+      : { nome: nomeNovo(nomesUsados()), valor: valorQuebrado(5, 120) };         // nome novo
+    if (Math.random() < .3) ev.msg = rnd(MSGS);
+    enviarTeste(ev).then(function(){ tstMsg('✓ ' + ev.nome + ' — ' + DOA.brl(ev.valor), 'ok'); })
+      .catch(function(e){ pararSim(); tstMsg(erroTxt(e), 'err'); });
+  }
+  $('simAuto').addEventListener('click', function(){
+    if (timerSim) { pararSim(); return tstMsg('Simulação parada.'); }
+    var seg = Math.max(5, (Number($('dur').value) || 3) + 2);   // espera o alerta anterior terminar
+    tickSim(); timerSim = setInterval(tickSim, seg * 1000);
+    $('simAuto').textContent = '⏹ Parar (1 doação a cada ' + seg + ' s)';
+  });
+  $('simClear').addEventListener('click', function(){
+    var upd = {}, n = 0;
+    Object.keys(evs).forEach(function(id){ if (evs[id].t) { upd[id] = null; n++; } });
+    if (!n) return tstMsg('Não há doações de teste.', 'err');
+    pararSim();
+    DOA.db('PATCH', '/events', upd).then(function(){ tstMsg('✓ ' + n + ' doações de teste apagadas.', 'ok'); })
+      .catch(function(e){ tstMsg(erroTxt(e), 'err'); });
+  });
 
   /* ---------- Início ---------- */
   preencherCfg(DOA.merge({}));

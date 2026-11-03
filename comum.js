@@ -3,10 +3,10 @@ window.DOA = (function () {
   var DEF = {
     aC1: '#ffb703', aC2: '#fb5607', aTx: '#1a0f00', aOp: 94, aX: 3, aY: 12,
     rBg: '#000000', rAc: '#ffb703', rTx: '#ffffff', rOp: 70, rX: 69, rY: 24,
-    rTitle: 'Maiores doadores', dur: 3, topn: 5, som: true
+    rTitle: 'Maiores doadores', dur: 3, topn: 5, som: true, aS: 100, rS: 100
   };
   var COR = { aC1: 1, aC2: 1, aTx: 1, rBg: 1, rAc: 1, rTx: 1 };
-  var NUM = { aOp: [10, 100], aX: [0, 64], aY: [0, 80], rOp: [0, 100], rX: [0, 72], rY: [0, 80], dur: [2, 10], topn: [3, 8] };
+  var NUM = { aOp: [10, 100], aX: [0, 90], aY: [0, 90], rOp: [0, 100], rX: [0, 90], rY: [0, 90], dur: [2, 10], topn: [1, 15], aS: [50, 200], rS: [50, 200] };
 
   function brl(n) { return Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   function hexA(h, a) {
