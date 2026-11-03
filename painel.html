@@ -33,6 +33,9 @@
   .quick{display:flex;gap:6px;margin-top:8px}
   .quick button{flex:1;padding:10px 4px;border-radius:8px;border:1px solid var(--line);background:#12101a;color:var(--txt);cursor:pointer;font-size:15px}
   .quick button:hover{border-color:var(--acc)}
+  .emp{border:1px solid #ff6b6b55;background:#ff6b6b12;border-radius:10px;padding:10px 12px;margin-top:8px;font-size:14px;line-height:1.45}
+  .emp b{color:#ff9f9f}
+  .btn.war{background:linear-gradient(135deg,#ff6b6b,#d62828);color:#fff;margin-top:10px}
   .nrow{display:flex;gap:8px}
   .nrow input{flex:1;min-width:0}
   .nrow button{width:54px;border-radius:10px;border:1px solid var(--line);background:#12101a;color:var(--txt);font-size:22px;cursor:pointer}
@@ -103,6 +106,13 @@
         <button class="btn" id="enviar" type="submit">Enviar para a tela ✨</button>
         <div class="msg" id="envMsg"></div>
       </form>
+    </div>
+
+    <div class="card">
+      <h2>⚔️ Empates</h2>
+      <div id="empInfo" style="font-size:14px;color:var(--mut)">Nenhum empate no momento.</div>
+      <div id="empBox"></div>
+      <div class="msg" id="empMsg"></div>
     </div>
 
     <div class="card">
@@ -200,6 +210,7 @@
 
   /* ---------- Eventos → tela ---------- */
   function aplicarEventos(){
+    atualizarEmpates();
     var ids = Object.keys(evs).sort(), total = 0;
     ids.forEach(function(id){ total += Number(evs[id].valor) || 0; });
     $('tot').textContent = DOA.brl(total);
@@ -223,6 +234,57 @@
     if (!confirm('Apagar esta doação (' + d.nome + ' — ' + DOA.brl(d.valor) + ')? Ela sai do ranking.')) return;
     DOA.db('DELETE', '/events/' + id).then(function(){ setMsg('envMsg', 'Doação apagada.', 'ok'); })
       .catch(function(e){ setMsg('envMsg', erroTxt(e), 'err'); });
+  }
+
+  /* ---------- Empates e rodada de desempate ---------- */
+  function chavePessoa(n){ return String(n).trim().toLowerCase(); }
+  function pessoas(){
+    var m = {};
+    Object.keys(evs).sort().forEach(function(id){
+      var e = evs[id], k = chavePessoa(e.nome);
+      if (!m[k]) m[k] = { k: k, nome: String(e.nome), total: 0 };
+      m[k].total = Math.round((m[k].total + Number(e.valor)) * 100) / 100;
+    });
+    return Object.keys(m).map(function(k){ return m[k]; });
+  }
+  // grupos de pessoas com o MESMO total, do maior valor para o menor
+  function gruposEmpate(){
+    var g = {};
+    pessoas().forEach(function(p){ var c = Math.round(p.total * 100); (g[c] = g[c] || []).push(p); });
+    return Object.keys(g).map(function(c){ return g[c]; })
+      .filter(function(a){ return a.length > 1; })
+      .sort(function(a, b){ return b[0].total - a[0].total; });
+  }
+  function atualizarEmpates(){
+    var gs = gruposEmpate(), box = $('empBox');
+    box.innerHTML = '';
+    if (!gs.length) { $('empInfo').textContent = 'Nenhum empate no momento.'; return; }
+    $('empInfo').textContent = gs.length === 1 ? 'Há um empate:' : 'Há ' + gs.length + ' empates:';
+    gs.forEach(function(g){
+      var d = document.createElement('div'); d.className = 'emp';
+      var t = document.createElement('div');
+      var b1 = document.createElement('b'); b1.textContent = g.map(function(p){ return p.nome; }).join(', ');
+      t.appendChild(b1); t.appendChild(document.createTextNode(' — ' + DOA.brl(g[0].total) + ' cada'));
+      var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn war'; btn.textContent = '⚔️ Rodada desempate';
+      btn.addEventListener('click', function(){ rodadaDesempate(g); });
+      d.appendChild(t); d.appendChild(btn); box.appendChild(d);
+    });
+  }
+  // Apaga todas as doações de quem NÃO está no empate; os empatados ficam como estão
+  function rodadaDesempate(g){
+    var manter = {}, upd = {}, n = 0, fora = {};
+    g.forEach(function(p){ manter[p.k] = 1; });
+    Object.keys(evs).forEach(function(id){
+      var k = chavePessoa(evs[id].nome);
+      if (!manter[k]) { upd[id] = null; n++; fora[k] = 1; }
+    });
+    if (!n) return setMsg('empMsg', 'Só restam os empatados: não há nada para apagar.', 'ok');
+    var m = Object.keys(fora).length;
+    if (!confirm('⚔️ Rodada de desempate\n\nFicam só: ' + g.map(function(p){ return p.nome; }).join(', ') + ' (' + DOA.brl(g[0].total) + ' cada).\n' +
+      'Serão apagadas ' + n + (n === 1 ? ' doação' : ' doações') + ' de ' + m + (m === 1 ? ' pessoa' : ' pessoas') + '.\n\nIsso não pode ser desfeito. Continuar?')) return;
+    DOA.db('PATCH', '/events', upd)
+      .then(function(){ setMsg('empMsg', '⚔️ Rodada de desempate: só os empatados ficaram na tela.', 'ok'); })
+      .catch(function(e){ setMsg('empMsg', erroTxt(e), 'err'); });
   }
 
   /* ---------- Enviar ---------- */

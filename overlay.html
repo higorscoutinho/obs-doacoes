@@ -42,6 +42,15 @@
   .ri .pos{width:1.6em;font-weight:900;color:var(--rac,#ffb703)}
   .ri .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
   .ri .vl{font-weight:800;font-variant-numeric:tabular-nums}
+  .ri .vs{font-size:1.05em;line-height:1}
+  /* Empate: embate (⚔️) com aviso pulsante em vermelho */
+  .ri.tie{background:rgba(255,70,70,.16);animation:tierow .9s ease-in-out infinite alternate}
+  @keyframes tierow{from{box-shadow:inset 0 0 0 calc(var(--u)*.14) rgba(255,70,70,.30)}to{box-shadow:inset 0 0 0 calc(var(--u)*.14) rgba(255,70,70,.95)}}
+  .rank h3{display:flex;align-items:center;justify-content:space-between;gap:calc(var(--u)*.6)}
+  .tiepill{display:none;padding:.15em .7em;border-radius:99px;background:#e63232;color:#fff;font-size:.9em;
+    letter-spacing:.08em;white-space:nowrap;animation:tiepill .8s ease-in-out infinite alternate}
+  .rank.hastie .tiepill{display:inline-block}
+  @keyframes tiepill{from{transform:scale(1);opacity:.85}to{transform:scale(1.1);opacity:1}}
 
   .spark{position:absolute;width:calc(var(--u)*.55);height:calc(var(--u)*.55);border-radius:50%;
     pointer-events:none;animation:fly 1.1s ease-out forwards}
@@ -58,7 +67,7 @@
   <div class="msg" id="aMsg"></div>
 </div>
 <div class="rank" id="rank">
-  <h3 id="rTitle"></h3>
+  <h3><span id="rTitle"></span><span class="tiepill" id="tiePill">⚔️ EMPATE</span></h3>
   <div class="list" id="rlist"></div>
 </div>
 <div id="aviso"></div>
@@ -100,13 +109,13 @@
   /* ---------- Ranking ---------- */
   function listaRank(){
     var arr = Object.keys(donors).map(function(k){ return donors[k]; })
-      .sort(function(a,b){ return b.total - a.total; });
+      .sort(function(a,b){ return (b.total - a.total) || ((a.first || '') < (b.first || '') ? -1 : ((a.first || '') > (b.first || '') ? 1 : 0)); });
     if (!arr.length && preview && pinned) {
       arr = [{nome:'Maria',total:120},{nome:'João Pedro',total:80},{nome:'Ana Clara',total:50},
-             {nome:'Tio Carlos',total:25},{nome:'Letícia',total:10},{nome:'Família Silva',total:8},
-             {nome:'Anônimo',total:6},{nome:'Paulo',total:5}];
+             {nome:'Tio Carlos',total:50},{nome:'Letícia',total:10},{nome:'Paulo Silva',total:8},
+             {nome:'Bruna Costa',total:6},{nome:'Paulo Lima',total:5}];
     }
-    return arr.slice(0, cfg.topn);
+    return arr;
   }
 
   // Se a lista (por tamanho ou quantidade) passaria do rodapé, sobe o suficiente para caber na tela
@@ -116,7 +125,9 @@
   }
 
   function renderRank(flashKey){
-    var u = unit() * (cfg.rS / 100), rh = u * 2.9, gap = u * 0.5, list = $('rlist'), arr = listaRank(), keep = {};
+    var u = unit() * (cfg.rS / 100), rh = u * 2.9, gap = u * 0.5, list = $('rlist'), all = listaRank(), arr = all.slice(0, cfg.topn), keep = {};
+    var cents = function(d){ return Math.round(d.total * 100); }, cnt = {}, pos1 = {}, hasTie = false;
+    all.forEach(function(d, i){ var c = cents(d); cnt[c] = (cnt[c] || 0) + 1; if (pos1[c] === undefined) pos1[c] = i + 1; });
     $('rank').style.opacity = arr.length ? 1 : 0;
     list.style.height = arr.length ? (arr.length * (rh + gap) - gap) + 'px' : '0px';
     arr.forEach(function(d, i){
@@ -124,7 +135,7 @@
       var el = rows[k];
       if (!el) {
         el = document.createElement('div'); el.className = 'ri';
-        el.innerHTML = '<span class="pos"></span><span class="nm"></span><span class="vl"></span>';
+        el.innerHTML = '<span class="pos"></span><span class="nm"></span><span class="vs"></span><span class="vl"></span>';
         el.style.transform = 'translateY(' + (arr.length * (rh + gap)) + 'px)';
         el.style.opacity = '0';
         list.appendChild(el); rows[k] = el;
@@ -132,7 +143,10 @@
         el.style.opacity = '1';
       }
       el.style.height = rh + 'px';
-      el.querySelector('.pos').textContent = (i + 1) + 'º';
+      var empate = cnt[cents(d)] > 1; if (empate) hasTie = true;
+      el.classList.toggle('tie', empate);
+      el.querySelector('.vs').textContent = empate ? '⚔️' : '';
+      el.querySelector('.pos').textContent = pos1[cents(d)] + 'º';          // empatados dividem a mesma posição
       el.querySelector('.nm').textContent = d.nome;
       el.querySelector('.vl').textContent = DOA.brl(d.total);
       el.style.transform = 'translateY(' + (i * (rh + gap)) + 'px)';
@@ -141,6 +155,7 @@
         setTimeout(function(){ el.classList.remove('flash'); }, 900);
       }
     });
+    $('rank').classList.toggle('hastie', hasTie);
     fitRank();
     Object.keys(rows).forEach(function(k){
       if (!keep[k]) {
@@ -232,7 +247,8 @@
       if (pend[id]) return;
       var e = evMap[id]; if (!e || !e.nome || !(Number(e.valor) > 0)) return;
       var k = key(e.nome);
-      if (!tot[k]) tot[k] = { nome: String(e.nome), total: 0 };
+      if (!tot[k]) tot[k] = { nome: String(e.nome), total: 0, first: id };
+      else if (id < tot[k].first) tot[k].first = id;
       tot[k].total = Math.round((tot[k].total + Number(e.valor)) * 100) / 100;
     });
     donors = tot;
