@@ -109,8 +109,8 @@
     </div>
 
     <div class="card">
-      <h2>⚔️ Empates</h2>
-      <div id="empInfo" style="font-size:14px;color:var(--mut)">Nenhum empate no momento.</div>
+      <h2>⚔️ Empate e desempate</h2>
+      <div id="empInfo" style="font-size:14px;color:var(--mut)">Nenhum empate no 1º lugar.</div>
       <div id="empBox"></div>
       <div class="msg" id="empMsg"></div>
     </div>
@@ -137,7 +137,7 @@
   <section id="t-apa" hidden>
     <div class="card">
       <h2>Prévia ao vivo</h2>
-      <div class="pv"><iframe id="pv" src="overlay.html?preview=1" title="Prévia do overlay"></iframe></div>
+      <div class="pv"><iframe id="pv" data-src="overlay.html?preview=1" title="Prévia do overlay"></iframe></div>
       <div class="opt"><label style="margin:0;display:flex;gap:8px;align-items:center;cursor:pointer;color:var(--txt)"><input type="checkbox" id="pin" checked> Fixar alerta na prévia (para posicionar)</label></div>
     </div>
 
@@ -195,6 +195,7 @@
     DOA.stream('/events', function(data){ evs = data || {}; aplicarEventos(); }, function(ok){
       status(ok, ok ? 'conectado' : 'reconectando…');
     });
+    DOA.stream('/cfg', function(c){ var r = !!(c && c.rodada === true); if (r !== rodadaAtiva) { rodadaAtiva = r; atualizarEmpates(); } });
     DOA.get('/cfg').then(function(c){ preencherCfg(DOA.merge(c || {})); enviarPrevia(); })
       .catch(function(){ preencherCfg(DOA.merge({})); });
   }
@@ -236,7 +237,8 @@
       .catch(function(e){ setMsg('envMsg', erroTxt(e), 'err'); });
   }
 
-  /* ---------- Empates e rodada de desempate ---------- */
+  /* ---------- Empate no topo e rodada de desempate ---------- */
+  var rodadaAtiva = false;
   function chavePessoa(n){ return String(n).trim().toLowerCase(); }
   function pessoas(){
     var m = {};
@@ -247,30 +249,54 @@
     });
     return Object.keys(m).map(function(k){ return m[k]; });
   }
-  // grupos de pessoas com o MESMO total, do maior valor para o menor
-  function gruposEmpate(){
-    var g = {};
-    pessoas().forEach(function(p){ var c = Math.round(p.total * 100); (g[c] = g[c] || []).push(p); });
-    return Object.keys(g).map(function(c){ return g[c]; })
-      .filter(function(a){ return a.length > 1; })
-      .sort(function(a, b){ return b[0].total - a[0].total; });
+  // só importa o TOPO: quem tem o mesmo total do 1º colocado (empates mais abaixo são ignorados)
+  function empateTopo(){
+    var p = pessoas(), max = 0;
+    if (p.length < 2) return null;
+    p.forEach(function(x){ var c = Math.round(x.total * 100); if (c > max) max = c; });
+    var g = p.filter(function(x){ return Math.round(x.total * 100) === max; });
+    return g.length > 1 ? g : null;
+  }
+  function nomesDe(g){ return g.map(function(p){ return p.nome; }).join(', '); }
+  function blocoEmp(nomes, resto){
+    var d = document.createElement('div'); d.className = 'emp';
+    var b1 = document.createElement('b'); b1.textContent = nomes;
+    d.appendChild(b1); d.appendChild(document.createTextNode(resto));
+    return d;
+  }
+  function botaoEmp(txt, cls, fn){
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = txt;
+    b.addEventListener('click', fn); return b;
   }
   function atualizarEmpates(){
-    var gs = gruposEmpate(), box = $('empBox');
+    var g = empateTopo(), box = $('empBox'), info = $('empInfo');
     box.innerHTML = '';
-    if (!gs.length) { $('empInfo').textContent = 'Nenhum empate no momento.'; return; }
-    $('empInfo').textContent = gs.length === 1 ? 'Há um empate:' : 'Há ' + gs.length + ' empates:';
-    gs.forEach(function(g){
-      var d = document.createElement('div'); d.className = 'emp';
-      var t = document.createElement('div');
-      var b1 = document.createElement('b'); b1.textContent = g.map(function(p){ return p.nome; }).join(', ');
-      t.appendChild(b1); t.appendChild(document.createTextNode(' — ' + DOA.brl(g[0].total) + ' cada'));
-      var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn war'; btn.textContent = '⚔️ Rodada desempate';
-      btn.addEventListener('click', function(){ rodadaDesempate(g); });
-      d.appendChild(t); d.appendChild(btn); box.appendChild(d);
-    });
+    if (rodadaAtiva) {
+      info.textContent = '⚔️ Rodada de desempate em andamento (lista destacada na tela).';
+      var d;
+      if (g) d = blocoEmp(nomesDe(g), ' — empate no 1º lugar continua (' + DOA.brl(g[0].total) + ' cada)');
+      else {
+        var p = pessoas().sort(function(a, b){ return b.total - a.total; });
+        if (p.length) d = blocoEmp(p[0].nome, ' — na frente com ' + DOA.brl(p[0].total));
+      }
+      if (d) box.appendChild(d);
+      box.appendChild(botaoEmp('✅ Encerrar rodada de desempate', 'ghost', encerrarRodada));
+      return;
+    }
+    if (!g) { info.textContent = 'Nenhum empate no 1º lugar.'; return; }
+    info.textContent = 'Empate no 1º lugar:';
+    var d2 = blocoEmp(nomesDe(g), ' — ' + DOA.brl(g[0].total) + ' cada');
+    d2.appendChild(botaoEmp('⚔️ Rodada desempate', 'war', function(){ rodadaDesempate(g); }));
+    box.appendChild(d2);
   }
-  // Apaga todas as doações de quem NÃO está no empate; os empatados ficam como estão
+  function iniciarRodada(){
+    return DOA.db('PUT', '/cfg/rodada', true).then(function(){ setMsg('empMsg', '⚔️ Rodada de desempate iniciada: só os empatados ficaram na tela, destacados.', 'ok'); });
+  }
+  function encerrarRodada(){
+    DOA.db('DELETE', '/cfg/rodada').then(function(){ setMsg('empMsg', 'Rodada de desempate encerrada.', 'ok'); })
+      .catch(function(e){ setMsg('empMsg', erroTxt(e), 'err'); });
+  }
+  // Apaga as doações de quem NÃO está no empate, mantém os empatados como estão e destaca a rodada na tela
   function rodadaDesempate(g){
     var manter = {}, upd = {}, n = 0, fora = {};
     g.forEach(function(p){ manter[p.k] = 1; });
@@ -278,12 +304,11 @@
       var k = chavePessoa(evs[id].nome);
       if (!manter[k]) { upd[id] = null; n++; fora[k] = 1; }
     });
-    if (!n) return setMsg('empMsg', 'Só restam os empatados: não há nada para apagar.', 'ok');
+    if (!n) { iniciarRodada().catch(function(e){ setMsg('empMsg', erroTxt(e), 'err'); }); return; }
     var m = Object.keys(fora).length;
-    if (!confirm('⚔️ Rodada de desempate\n\nFicam só: ' + g.map(function(p){ return p.nome; }).join(', ') + ' (' + DOA.brl(g[0].total) + ' cada).\n' +
+    if (!confirm('⚔️ Rodada de desempate\n\nFicam só: ' + nomesDe(g) + ' (' + DOA.brl(g[0].total) + ' cada).\n' +
       'Serão apagadas ' + n + (n === 1 ? ' doação' : ' doações') + ' de ' + m + (m === 1 ? ' pessoa' : ' pessoas') + '.\n\nIsso não pode ser desfeito. Continuar?')) return;
-    DOA.db('PATCH', '/events', upd)
-      .then(function(){ setMsg('empMsg', '⚔️ Rodada de desempate: só os empatados ficaram na tela.', 'ok'); })
+    DOA.db('PATCH', '/events', upd).then(iniciarRodada)
       .catch(function(e){ setMsg('empMsg', erroTxt(e), 'err'); });
   }
 
@@ -321,7 +346,7 @@
   });
   $('reset').addEventListener('click', function(){
     if (!confirm('Apagar TODAS as doações? O ranking e o total voltam a zero.')) return;
-    DOA.db('DELETE', '/events').then(function(){ setMsg('envMsg', 'Tudo apagado.', 'ok'); })
+    DOA.db('DELETE', '/events').then(function(){ return DOA.db('DELETE', '/cfg/rodada'); }).then(function(){ setMsg('envMsg', 'Tudo apagado.', 'ok'); })
       .catch(function(e){ setMsg('envMsg', erroTxt(e), 'err'); });
   });
 
@@ -330,6 +355,7 @@
     b.addEventListener('click', function(){
       Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function(x){ x.classList.toggle('on', x === b); });
       ['env', 'apa'].forEach(function(t){ $('t-' + t).hidden = b.getAttribute('data-t') !== t; });
+      if (b.getAttribute('data-t') === 'apa' && !$('pv').getAttribute('src')) $('pv').setAttribute('src', $('pv').getAttribute('data-src'));   // carrega a prévia só quando abrir a aba
     });
   });
 
@@ -363,7 +389,7 @@
 
   $('salvar').addEventListener('click', function(){
     $('salvar').disabled = true; setMsg('apaMsg', 'Salvando…');
-    DOA.db('PUT', '/cfg', lerCfg()).then(function(){
+    DOA.db('PATCH', '/cfg', lerCfg()).then(function(){
       dirty = false; $('dirty').textContent = '';
       setMsg('apaMsg', '✓ Salvo. O overlay do OBS atualiza na hora.', 'ok');
     }).catch(function(e){ setMsg('apaMsg', erroTxt(e), 'err'); })

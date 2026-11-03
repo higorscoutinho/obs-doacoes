@@ -45,6 +45,16 @@
   .ri .vs{font-size:1.05em;line-height:1}
   /* Empate: embate (⚔️) com aviso pulsante em vermelho */
   .ri.tie{background:rgba(255,70,70,.16);animation:tierow .9s ease-in-out infinite alternate}
+  .alert.tiealert{--a1:rgba(214,40,40,.96);--a2:rgba(255,107,107,.96);--atx:#fff}
+  /* Rodada de desempate: lista inteira destacada em dourado até o painel encerrar a rodada */
+  .rank.round{box-shadow:0 0 0 calc(var(--u)*.2) #ffd60a,0 0 calc(var(--u)*2.2) rgba(255,214,10,.6);animation:roundglow 1.1s ease-in-out infinite alternate}
+  @keyframes roundglow{from{box-shadow:0 0 0 calc(var(--u)*.2) rgba(255,214,10,.55),0 0 calc(var(--u)*1.2) rgba(255,214,10,.25)}to{box-shadow:0 0 0 calc(var(--u)*.2) #ffd60a,0 0 calc(var(--u)*2.6) rgba(255,214,10,.8)}}
+  .rank.round .ri{background:rgba(255,214,10,.14)}
+  .rank.round .ri.tie{background:rgba(255,70,70,.2)}
+  .roundpill{display:none;padding:.15em .7em;border-radius:99px;background:#ffd60a;color:#2a2100;font-size:.9em;font-weight:800;
+    letter-spacing:.08em;white-space:nowrap;animation:tiepill .8s ease-in-out infinite alternate}
+  .rank.round .roundpill{display:inline-block}
+  .rank.round.hastie .tiepill,.rank.round .tiepill{display:none}
   @keyframes tierow{from{box-shadow:inset 0 0 0 calc(var(--u)*.14) rgba(255,70,70,.30)}to{box-shadow:inset 0 0 0 calc(var(--u)*.14) rgba(255,70,70,.95)}}
   .rank h3{display:flex;align-items:center;justify-content:space-between;gap:calc(var(--u)*.6)}
   .tiepill{display:none;padding:.15em .7em;border-radius:99px;background:#e63232;color:#fff;font-size:.9em;
@@ -67,7 +77,7 @@
   <div class="msg" id="aMsg"></div>
 </div>
 <div class="rank" id="rank">
-  <h3><span id="rTitle"></span><span class="tiepill" id="tiePill">⚔️ EMPATE</span></h3>
+  <h3><span id="rTitle"></span><span class="tiepill" id="tiePill">⚔️ EMPATE</span><span class="roundpill" id="roundPill">⚔️ DESEMPATE</span></h3>
   <div class="list" id="rlist"></div>
 </div>
 <div id="aviso"></div>
@@ -111,8 +121,8 @@
     var arr = Object.keys(donors).map(function(k){ return donors[k]; })
       .sort(function(a,b){ return (b.total - a.total) || ((a.first || '') < (b.first || '') ? -1 : ((a.first || '') > (b.first || '') ? 1 : 0)); });
     if (!arr.length && preview && pinned) {
-      arr = [{nome:'Maria',total:120},{nome:'João Pedro',total:80},{nome:'Ana Clara',total:50},
-             {nome:'Tio Carlos',total:50},{nome:'Letícia',total:10},{nome:'Paulo Silva',total:8},
+      arr = [{nome:'Maria',total:120},{nome:'João Pedro',total:120},{nome:'Ana Clara',total:50},
+             {nome:'Tio Carlos',total:25},{nome:'Letícia',total:10},{nome:'Paulo Silva',total:8},
              {nome:'Bruna Costa',total:6},{nome:'Paulo Lima',total:5}];
     }
     return arr;
@@ -126,8 +136,10 @@
 
   function renderRank(flashKey){
     var u = unit() * (cfg.rS / 100), rh = u * 2.9, gap = u * 0.5, list = $('rlist'), all = listaRank(), arr = all.slice(0, cfg.topn), keep = {};
-    var cents = function(d){ return Math.round(d.total * 100); }, cnt = {}, pos1 = {}, hasTie = false;
-    all.forEach(function(d, i){ var c = cents(d); cnt[c] = (cnt[c] || 0) + 1; if (pos1[c] === undefined) pos1[c] = i + 1; });
+    var cents = function(d){ return Math.round(d.total * 100); }, hasTie = false;
+    // só conta empate no TOPO: pessoas com o mesmo total do 1º colocado (empates mais abaixo são ignorados)
+    var topC = all.length ? cents(all[0]) : 0, nTop = all.filter(function(d){ return cents(d) === topC; }).length, tieTop = nTop > 1;
+    arr = all.slice(0, Math.max(cfg.topn, tieTop ? nTop : 0));      // todos os empatados ficam sempre visíveis
     $('rank').style.opacity = arr.length ? 1 : 0;
     list.style.height = arr.length ? (arr.length * (rh + gap) - gap) + 'px' : '0px';
     arr.forEach(function(d, i){
@@ -143,10 +155,10 @@
         el.style.opacity = '1';
       }
       el.style.height = rh + 'px';
-      var empate = cnt[cents(d)] > 1; if (empate) hasTie = true;
+      var empate = tieTop && cents(d) === topC; if (empate) hasTie = true;
       el.classList.toggle('tie', empate);
       el.querySelector('.vs').textContent = empate ? '⚔️' : '';
-      el.querySelector('.pos').textContent = pos1[cents(d)] + 'º';          // empatados dividem a mesma posição
+      el.querySelector('.pos').textContent = (empate ? 1 : i + 1) + 'º';   // empatados no topo dividem o 1º lugar
       el.querySelector('.nm').textContent = d.nome;
       el.querySelector('.vl').textContent = DOA.brl(d.total);
       el.style.transform = 'translateY(' + (i * (rh + gap)) + 'px)';
@@ -156,6 +168,7 @@
       }
     });
     $('rank').classList.toggle('hastie', hasTie);
+    $('rank').classList.toggle('round', !!cfg.rodada);
     fitRank();
     Object.keys(rows).forEach(function(k){
       if (!keep[k]) {
@@ -212,25 +225,56 @@
   function next(){
     if (showing || !queue.length) return;
     showing = true;
-    var d = queue.shift(), a = $('alert');
-    $('aWho').textContent = '💛 ' + d.nome + ' doou';
-    $('aAmt').textContent = DOA.brl(d.valor);
-    $('aMsg').textContent = d.msg || '';
-    $('aMsg').style.display = d.msg ? 'block' : 'none';
-    a.className = 'alert'; void a.offsetWidth; a.className = 'alert in';
+    var d = queue.shift(), a = $('alert'), extra = d.tie ? ' tiealert' : '';
+    if (d.tie) {                                           // aviso: empate no 1º lugar
+      $('aWho').textContent = '⚔️ EMPATE NO 1º LUGAR!';
+      $('aAmt').textContent = d.nomes.join(' x ');
+      $('aMsg').textContent = DOA.brl(d.total) + ' cada';
+      $('aMsg').style.display = 'block';
+    } else {
+      $('aWho').textContent = '💛 ' + d.nome + ' doou';
+      $('aAmt').textContent = DOA.brl(d.valor);
+      $('aMsg').textContent = d.msg || '';
+      $('aMsg').style.display = d.msg ? 'block' : 'none';
+    }
+    a.className = 'alert'; void a.offsetWidth; a.className = 'alert' + extra + ' in';
     chime(); sparks();
 
-    var k = key(d.nome);
-    rebuildDonors();                       // esta doação deixa de estar "na fila" e entra no ranking
-    setTimeout(function(){ renderRank(k); }, 500);
+    if (!d.tie) {
+      var k = key(d.nome);
+      rebuildDonors();                     // esta doação deixa de estar "na fila" e entra no ranking
+      checkTie(true);                      // se ela provocou um empate no topo, avisa em seguida
+      setTimeout(function(){ renderRank(k); }, 500);
+    }
 
     setTimeout(function(){
-      a.className = 'alert out';
+      a.className = 'alert' + extra + ' out';
       setTimeout(function(){
         a.className = 'alert'; showing = false;
         if (queue.length) next(); else if (pinned) applyPin();
       }, 400);
-    }, (Number(cfg.dur) || 3) * 1000);
+    }, ((Number(cfg.dur) || 3) + (d.tie ? 2 : 0)) * 1000);
+  }
+
+  // Empate no TOPO da tabela (mesmo total do 1º lugar). Empates abaixo do topo não contam.
+  var lastTieSig = '';
+  function topTieInfo(){
+    var arr = Object.keys(donors).map(function(k){ return donors[k]; }).sort(function(a, b){ return b.total - a.total; });
+    if (arr.length < 2) return null;
+    var c = Math.round(arr[0].total * 100);
+    var grp = arr.filter(function(d){ return Math.round(d.total * 100) === c; });
+    if (grp.length < 2) return null;
+    grp.sort(function(a, b){ return (a.first || '') < (b.first || '') ? -1 : 1; });
+    return { nomes: grp.map(function(d){ return d.nome; }), total: arr[0].total,
+             sig: grp.map(function(d){ return key(d.nome); }).sort().join('|') + '@' + c };
+  }
+  function checkTie(announce){
+    var t = topTieInfo();
+    if (!t) { lastTieSig = ''; return; }
+    if (t.sig !== lastTieSig) {
+      lastTieSig = t.sig;
+      if (announce) queue.push({ tie: true, id: 'tie', nomes: t.nomes, total: t.total });
+    }
   }
 
   /* ---------- Conexão em tempo real com o Firebase ---------- */
@@ -263,9 +307,12 @@
       if (!firstLoad) queue.push({ id: id, nome: String(e.nome).slice(0, 30), valor: Number(e.valor), msg: String(e.msg || '').slice(0, 80) });
     });
     Object.keys(known).forEach(function(id){ if (!evMap[id]) delete known[id]; });   // desfeitas / zeradas
-    queue = queue.filter(function(q){ return evMap[q.id]; });
+    queue = queue.filter(function(q){ return q.tie || evMap[q.id]; });
+    var primeira = firstLoad;
     firstLoad = false;                                     // 1ª leitura = só carrega o ranking, sem alertas antigos
-    rebuildDonors(); renderRank();
+    rebuildDonors(); checkTie(!primeira); 
+    if (!topTieInfo()) queue = queue.filter(function(q){ return !q.tie; });   // empate desfeito: descarta aviso pendente
+    renderRank();
     next();
   }
 
